@@ -13,51 +13,49 @@ public class ConcreteMessagePreprocessor implements MessagePreprocessor {
     private boolean isCompleted = false;
 
     public ConcreteMessagePreprocessor(Collection<String> initial,
-                                       List<UnaryOperator<String>> functions){
-        if (initial == null || functions == null || initial.isEmpty() || functions.isEmpty()){
+                                       List<UnaryOperator<String>> functions) {
+        if (initial == null || functions == null || initial.isEmpty() || functions.isEmpty()) {
             throw new IllegalArgumentException("Some of specified arguments were either null or empty");
         }
 
-        int numQueues = functions.size() + 2; // source + destination + rest intermediate
+        int numQueues = functions.size() + 1; // source + destination + rest intermediate
         int capacity = initial.size() / 2;
 
         queues = new ArrayList<>(numQueues);
         transformers = new ArrayList<>(functions.size());
 
-        prepareQueues(initial.size(), capacity, numQueues);
+        prepareQueues(initial, capacity, numQueues);
         prepareTransformers(functions);
     }
 
-    private void prepareQueues(int messagesCount, int capacity, int numQueues){
-        for (int i=0; i < numQueues; i++){
-            if (i == 0 || i == numQueues - 1){
-                queues.add(new LinkedBlockingQueue<>(messagesCount));
-            } else{
-                queues.add(new LinkedBlockingQueue<>(capacity));
-            }
+    private void prepareQueues(Collection<String> initial, int capacity, int numQueues) {
+        for (int i = 0; i < numQueues; i++) {
+            if (i == 0) queues.add(new LinkedBlockingQueue<>(initial));
+            else if (i == numQueues - 1) queues.add(new LinkedBlockingQueue<>(initial.size()));
+            else queues.add(new LinkedBlockingQueue<>(capacity));
         }
     }
 
-    private void prepareTransformers(List<UnaryOperator<String>> functions){
-        for (int i=0; i < functions.size(); i++){
+    private void prepareTransformers(List<UnaryOperator<String>> functions) {
+        for (int i = 0; i < functions.size(); i++) {
             UnaryOperator<String> op = functions.get(i);
             //i+1 on the last iteration is resulting queue (i=0 is input messages queue)
             //the last queue is used as storage for last operation results and thus is the resulting queue
-            Transformer transformer = new Transformer(op, queues.get(i), queues.get(i+1));
+            Transformer transformer = new Transformer(op, queues.get(i), queues.get(i + 1));
             transformers.add(transformer);
         }
     }
 
     @Override
     public void start() {
-        for (Transformer transformer : transformers){
+        for (Transformer transformer : transformers) {
             transformer.start();
         }
     }
 
     @Override
     public void stop() {
-        for (Transformer transformer : transformers){
+        for (Transformer transformer : transformers) {
             transformer.interrupt();
         }
         isCompleted = true;
@@ -74,13 +72,13 @@ public class ConcreteMessagePreprocessor implements MessagePreprocessor {
         try {
             while (true) {
                 String message = destinationQueue.take();
-                System.out.println(message);
                 if (message.equals("empty")) {
                     break;
                 }
                 result.add(message);
             }
         } catch (InterruptedException e) {
+            e.printStackTrace();
         }
         return Optional.of(Collections.unmodifiableCollection(result));
     }
